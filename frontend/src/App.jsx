@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
 import votingArtifact from "./abi/Voting.json";
 
-const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const CONTRACT_ADDRESS = " 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
 const BACKEND_URL = "http://localhost:3001/auth/nullifier";
-const GOOGLE_CLIENT_ID = "754309088615-7303l8a2rh5ioek5o9qtj1tdi4ojdj3m.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = "754309088615-7303la2rh5ioek5o9qtj1tdi4ojdj3m.apps.googleusercontent.com";
 
 export default function App() {
   const abi = votingArtifact.abi;
