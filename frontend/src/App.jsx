@@ -22,6 +22,8 @@ export default function App() {
   const [pollId, setPollId] = useState("poll1");
   const [nullifier, setNullifier] = useState("");
 
+  const [alreadyVoted, setAlreadyVoted] = useState(false);
+
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const hasEthereum = typeof window !== "undefined" && window.ethereum;
@@ -102,10 +104,25 @@ export default function App() {
     }
   }
 
+  async function checkNullifierUsed(n) {
+    if (!contractRead || !n) return false;
+
+    try {
+      const used = await contractRead.usedNullifiers(n);
+      setAlreadyVoted(Boolean(used));
+      return Boolean(used);
+    } catch (e) {
+      setAlreadyVoted(false);
+      return false;
+    }
+  }
+
   async function fetchNullifier() {
     try {
       setError("");
       setStatus("Fetching nullifier from backend...");
+
+      setAlreadyVoted(false);
       setNullifier("");
 
       const res = await fetch(BACKEND_URL, {
@@ -123,6 +140,10 @@ export default function App() {
       if (!data.nullifier) throw new Error("Backend did not return nullifier");
 
       setNullifier(data.nullifier);
+
+      // odmah provjeri je li već iskorišten
+      await checkNullifierUsed(data.nullifier);
+
       setStatus("Nullifier fetched ✅");
     } catch (e) {
       console.error("fetchNullifier error:", e);
@@ -138,12 +159,12 @@ export default function App() {
       if (!window.ethereum?.request) throw new Error("MetaMask not detected");
       if (!account) throw new Error("Connect wallet first");
       if (!nullifier) throw new Error("Nullifier is missing. Click 'Get nullifier' first.");
+      if (alreadyVoted) throw new Error("Already voted");
 
       setStatus("Preparing transaction...");
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-
       const contractWrite = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
 
       setStatus("Sending vote transaction (check MetaMask)...");
@@ -152,14 +173,25 @@ export default function App() {
       setStatus(`Tx sent: ${tx.hash}. Waiting confirmation...`);
       await tx.wait();
 
+      setAlreadyVoted(true);
+
       setStatus("Vote confirmed ✅ Refreshing results...");
       await loadPoll();
       setStatus("Done ✅");
     } catch (e) {
       console.error("vote error:", e);
-      const msg = e?.shortMessage || e?.message || String(e);
       setStatus("");
-      setError(msg);
+
+      const raw = e?.shortMessage || e?.message || String(e);
+      const lower = raw.toLowerCase();
+
+      if (lower.includes("already voted") || lower.includes("missing revert data")) {
+        setError("Već ste glasali (ugovor je odbio ponovni pokušaj).");
+        setAlreadyVoted(true);
+        return;
+      }
+
+      setError(raw);
     }
   }
 
@@ -169,7 +201,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contractRead]);
 
-  // Auto-read existing account + chain on page load (helps when already connected)
+  // Auto-read existing account + chain on page load
   useEffect(() => {
     (async () => {
       try {
@@ -214,6 +246,27 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contractRead]);
+
+  // 🔔 Auto-refresh results on VoteCast event
+  useEffect(() => {
+    if (!contractRead) return;
+
+    const handler = async (_nullifierFromEvent, _optionIndex) => {
+      await loadPoll();
+      if (nullifier) {
+        await checkNullifierUsed(nullifier);
+      }
+    };
+
+    contractRead.on("VoteCast", handler);
+
+    return () => {
+      try {
+        contractRead.off("VoteCast", handler);
+      } catch {}
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractRead, nullifier]);
 
   return (
     <div style={{ fontFamily: "system-ui", maxWidth: 720, margin: "40px auto", padding: 16 }}>
@@ -290,7 +343,13 @@ export default function App() {
           <b>nullifier:</b> {nullifier || "-"}
         </div>
 
-        <button onClick={vote} disabled={!nullifier || !account}>
+        {nullifier && alreadyVoted && (
+          <p style={{ color: "crimson", marginTop: 6 }}>
+            Već ste glasali za ovu anketu (ovaj nullifier je već iskorišten).
+          </p>
+        )}
+
+        <button onClick={vote} disabled={!nullifier || !account || alreadyVoted}>
           Vote
         </button>
       </div>
