@@ -4,9 +4,12 @@ import votingArtifact from "./abi/Voting.json";
 
 const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 const BACKEND_URL = "http://localhost:3001/auth/nullifier";
+const GOOGLE_CLIENT_ID = "754309088615-7303l8a2rh5ioek5o9qtj1tdi4ojdj3m.apps.googleusercontent.com";
 
 export default function App() {
   const abi = votingArtifact.abi;
+  const [idToken, setIdToken] = useState("");
+  const [googleSub, setGoogleSub] = useState(""); // samo za debug (opcionalno)
 
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -128,13 +131,10 @@ export default function App() {
       const res = await fetch(BACKEND_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ devUser, pollId }),
+        body: JSON.stringify({ idToken, pollId }),
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Backend error ${res.status}: ${text}`);
-      }
+      if (!idToken) throw new Error("Google login required (missing ID token).");
 
       const data = await res.json();
       if (!data.nullifier) throw new Error("Backend did not return nullifier");
@@ -194,6 +194,28 @@ export default function App() {
       setError(raw);
     }
   }
+
+  useEffect(() => {
+  if (!window.google?.accounts?.id) return;
+
+  window.google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+   callback: (resp) => {
+  console.log("Google credential:", resp);
+  console.log("ID token:", resp.credential);
+  setIdToken(resp.credential || "");
+},
+  });
+
+  // Render button u div#googleBtn
+  window.google.accounts.id.renderButton(
+    document.getElementById("googleBtn"),
+    { theme: "outline", size: "large" }
+  );
+
+  // Optional: One Tap prompt
+  // window.google.accounts.id.prompt();
+}, []);
 
   // Auto-load poll when contractRead becomes available
   useEffect(() => {
@@ -339,8 +361,10 @@ export default function App() {
 
         <button onClick={fetchNullifier}>Get nullifier</button>
 
+        <div id="googleBtn"></div>
+
         <div style={{ wordBreak: "break-all", background: "#f6f6f6", padding: 10, borderRadius: 8 }}>
-          <b>nullifier:</b> {nullifier || "-"}
+          <b>ID token:</b> {idToken ? `${idToken.slice(0, 18)}...` : "-"}
         </div>
 
         {nullifier && alreadyVoted && (
