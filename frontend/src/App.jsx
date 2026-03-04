@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
 import votingArtifact from "./abi/Voting.json";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://voting-app-masters.onrender.com/";
 const SEPOLIA_RPC_URL = import.meta.env.VITE_SEPOLIA_RPC_URL;
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
