@@ -28,5 +28,8 @@
     "mocha": "^11.7.5",
     "typescript": "~5.8.0",
     "viem": "^2.46.3"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1"
   }
 }
