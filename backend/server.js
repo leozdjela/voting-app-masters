@@ -31,14 +31,7 @@ const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 // učitaj ABI iz hardhat artifacts (root projekta)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const artifactPath = path.join(
-  __dirname,
-  "..",
-  "artifacts",
-  "contracts",
-  "Voting.sol",
-  "Voting.json"
-);
+const artifactPath = path.join(__dirname, "abi", "Voting.json");
 const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
 const ABI = artifact.abi;
 
