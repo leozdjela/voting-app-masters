@@ -389,23 +389,7 @@ export default function App() {
                 </div>
               )}
 
-              {txHash && (
-                <div style={styles.alertOk}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                    <div>
-                      <b>Transakcija poslana:</b> {shortHash(txHash, 14)}
-                    </div>
-                    <a
-                      href={`https://sepolia.etherscan.io/tx/${txHash}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={styles.link}
-                    >
-                      Pogledaj na Etherscanu →
-                    </a>
-                  </div>
-                </div>
-              )}
+              
 
               {(status || error) && (
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
