@@ -28,7 +28,7 @@ export default function App() {
   const [nullifier, setNullifier] = useState("");
   const [alreadyVoted, setAlreadyVoted] = useState(false);
 
-  const [txHash, setTxHash] = useState(""); // ostaje za debug (ne prikazujemo korisniku)
+  const [txHash, setTxHash] = useState(""); // samo za debug (ne prikazujemo)
 
   const [loadingPoll, setLoadingPoll] = useState(false);
   const [loadingNullifier, setLoadingNullifier] = useState(false);
@@ -37,6 +37,7 @@ export default function App() {
   // Modali
   const [showConfirm, setShowConfirm] = useState(false);
   const [showVotedModal, setShowVotedModal] = useState(false);
+  const [votedModalKind, setVotedModalKind] = useState("already"); // "already" | "confirmed"
 
   // Read-only provider (bez MetaMaska)
   const providerRead = useMemo(() => {
@@ -103,6 +104,7 @@ export default function App() {
     }
   }
 
+  // ✅ Nakon login-a: izračunaj nullifier i ako je već glasao -> popup
   async function fetchNullifier() {
     try {
       setError("");
@@ -132,9 +134,15 @@ export default function App() {
       if (!data.nullifier) throw new Error("Backend nije vratio nullifier.");
 
       setNullifier(data.nullifier);
-      await checkNullifierUsed(data.nullifier);
+      const used = await checkNullifierUsed(data.nullifier);
 
-      setStatus("Spremno za glasanje ✅");
+      setStatus("Spremno ✅");
+
+      // ✅ POPUP ako je već glasao odmah nakon prijave
+      if (used) {
+        setVotedModalKind("already");
+        setShowVotedModal(true);
+      }
     } catch (e) {
       console.error("fetchNullifier error:", e);
       setStatus("");
@@ -153,7 +161,11 @@ export default function App() {
 
       if (!idToken) throw new Error("Potrebna je prijava Google računom.");
       if (!contractRead) throw new Error("Ugovor nije spreman.");
-      if (alreadyVoted) throw new Error("Već ste glasali.");
+      if (alreadyVoted) {
+        setVotedModalKind("already");
+        setShowVotedModal(true);
+        throw new Error("Već ste glasali.");
+      }
 
       const res = await fetch(`${BACKEND_URL}/vote`, {
         method: "POST",
@@ -176,6 +188,7 @@ export default function App() {
       if (!res.ok) {
         if (res.status === 409) {
           setAlreadyVoted(true);
+          setVotedModalKind("already");
           setShowVotedModal(true);
           throw new Error("Već ste glasali (ovaj račun je već iskorišten).");
         }
@@ -196,6 +209,9 @@ export default function App() {
       }
 
       setStatus("Glas je zabilježen ✅");
+
+      // ✅ POPUP nakon uspješnog glasanja
+      setVotedModalKind("confirmed");
       setShowVotedModal(true);
     } catch (e) {
       console.error("voteGasless error:", e);
@@ -225,7 +241,6 @@ export default function App() {
       itp_support: true,
     });
 
-    // render once; element postoji na prvom renderu (nisam prijavljen)
     window.google.accounts.id.renderButton(document.getElementById("googleBtn"), {
       theme: "outline",
       size: "large",
@@ -253,6 +268,12 @@ export default function App() {
     !loadingNullifier &&
     !submittingVote;
 
+  const votedModalTitle = votedModalKind === "confirmed" ? "Hvala! Glas je zaprimljen ✅" : "Već ste glasali ✅";
+  const votedModalText =
+    votedModalKind === "confirmed"
+      ? "Vaš glas je uspješno zabilježen. Ispod možete vidjeti trenutne rezultate ankete."
+      : "Ovaj Google račun je već iskorišten za ovu anketu. Ispod su trenutni rezultati.";
+
   return (
     <div style={styles.page} className="app-shell">
       <div className="app-container">
@@ -275,10 +296,7 @@ export default function App() {
                 <div id="googleBtn" />
               </div>
 
-              <div style={styles.loginHint}>
-                Nakon prijave prikazat će se anketa i opcije.
-                <br> <i>Ako "login" nije prikazan, refresh stranicu </i></br>
-              </div>
+              <div style={styles.loginHint}>Nakon prijave prikazat će se anketa i opcije.</div>
 
               {error && (
                 <div style={{ ...styles.alertErr, marginTop: 12 }}>
@@ -330,12 +348,8 @@ export default function App() {
                         style={{
                           ...styles.option,
                           cursor: alreadyVoted ? "default" : "pointer",
-                          borderColor: !alreadyVoted && selected
-                            ? "rgba(99,102,241,0.55)"
-                            : "rgba(148,163,184,0.35)",
-                          boxShadow: !alreadyVoted && selected
-                            ? "0 0 0 4px rgba(99,102,241,0.12)"
-                            : "none",
+                          borderColor: !alreadyVoted && selected ? "rgba(99,102,241,0.55)" : "rgba(148,163,184,0.35)",
+                          boxShadow: !alreadyVoted && selected ? "0 0 0 4px rgba(99,102,241,0.12)" : "none",
                         }}
                         onClick={() => {
                           if (!alreadyVoted) setSelectedIndex(i);
@@ -360,19 +374,12 @@ export default function App() {
 
                             <div style={styles.optionMeta}>
                               <span style={styles.pill}>{v} glasova</span>
-                              <span style={styles.pillMuted}>
-                                {clamp(Math.round(pct), 0, 100)}%
-                              </span>
+                              <span style={styles.pillMuted}>{clamp(Math.round(pct), 0, 100)}%</span>
                             </div>
                           </div>
 
                           <div style={styles.progressTrack}>
-                            <div
-                              style={{
-                                ...styles.progressFill,
-                                width: `${clamp(pct, 0, 100)}%`,
-                              }}
-                            />
+                            <div style={{ ...styles.progressFill, width: `${clamp(pct, 0, 100)}%` }} />
                           </div>
                         </div>
                       </label>
@@ -425,10 +432,7 @@ export default function App() {
             </p>
 
             <div style={styles.modalActions}>
-              <button
-                style={styles.modalBtnGhost}
-                onClick={() => setShowConfirm(false)}
-              >
+              <button style={styles.modalBtnGhost} onClick={() => setShowConfirm(false)}>
                 Odustani
               </button>
 
@@ -450,16 +454,11 @@ export default function App() {
       {showVotedModal && (
         <div style={styles.modalOverlay} onClick={() => setShowVotedModal(false)}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <h3 style={styles.modalTitle}>Već ste glasali ✅</h3>
-            <p style={styles.modalText}>
-              Vaš glas je zabilježen. Ispod možete vidjeti trenutne rezultate ankete.
-            </p>
+            <h3 style={styles.modalTitle}>{votedModalTitle}</h3>
+            <p style={styles.modalText}>{votedModalText}</p>
 
             <div style={styles.modalActions}>
-              <button
-                style={styles.modalBtnPrimary}
-                onClick={() => setShowVotedModal(false)}
-              >
+              <button style={styles.modalBtnPrimary} onClick={() => setShowVotedModal(false)}>
                 U redu
               </button>
             </div>
@@ -477,14 +476,12 @@ const styles = {
       "radial-gradient(1200px 700px at 20% 10%, rgba(99,102,241,0.22), transparent 55%), radial-gradient(900px 600px at 90% 20%, rgba(16,185,129,0.16), transparent 50%), linear-gradient(180deg, #0b1020, #070a12)",
     color: "#e5e7eb",
     padding: "20px clamp(12px, 3vw, 36px)",
-    fontFamily:
-      "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
   },
 
   header: {
     display: "flex",
     justifyContent: "center",
-    gap: 18,
     alignItems: "flex-start",
     flexWrap: "wrap",
     marginBottom: 18,
@@ -501,12 +498,7 @@ const styles = {
     backdropFilter: "blur(10px)",
   },
 
-  cardTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-  },
+  cardTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 },
 
   h2: { margin: 0, fontSize: 18, opacity: 0.95 },
   h3: { margin: 0, fontSize: 16, opacity: 0.95 },
@@ -514,11 +506,7 @@ const styles = {
   question: { fontSize: 20, margin: "10px 0 0", color: "#f3f4f6" },
   muted: { opacity: 0.8, fontSize: 13 },
 
-  hr: {
-    height: 1,
-    background: "rgba(148,163,184,0.18)",
-    margin: "14px 0",
-  },
+  hr: { height: 1, background: "rgba(148,163,184,0.18)", margin: "14px 0" },
 
   btnGhost: {
     background: "rgba(148,163,184,0.10)",
@@ -536,14 +524,7 @@ const styles = {
     background: "rgba(2,6,23,0.35)",
   },
 
-  optionTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-
+  optionTop: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" },
   optionText: { fontSize: 16, color: "#f9fafb" },
   optionMeta: { display: "flex", gap: 8, alignItems: "center" },
 
@@ -564,24 +545,17 @@ const styles = {
     opacity: 0.9,
   },
 
-  progressTrack: {
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(148,163,184,0.16)",
-    overflow: "hidden",
-  },
+  progressTrack: { height: 8, borderRadius: 999, background: "rgba(148,163,184,0.16)", overflow: "hidden" },
 
   progressFill: {
     height: "100%",
     borderRadius: 999,
-    background:
-      "linear-gradient(90deg, rgba(99,102,241,0.95), rgba(16,185,129,0.85))",
+    background: "linear-gradient(90deg, rgba(99,102,241,0.95), rgba(16,185,129,0.85))",
     transition: "width 260ms ease",
   },
 
   btnPrimary: {
-    background:
-      "linear-gradient(90deg, rgba(99,102,241,1), rgba(16,185,129,0.95))",
+    background: "linear-gradient(90deg, rgba(99,102,241,1), rgba(16,185,129,0.95))",
     border: "none",
     color: "#061018",
     fontWeight: 900,
@@ -607,13 +581,11 @@ const styles = {
   skel: {
     height: 56,
     borderRadius: 14,
-    background:
-      "linear-gradient(90deg, rgba(148,163,184,0.10), rgba(148,163,184,0.18), rgba(148,163,184,0.10))",
+    background: "linear-gradient(90deg, rgba(148,163,184,0.10), rgba(148,163,184,0.18), rgba(148,163,184,0.10))",
     backgroundSize: "200% 100%",
     animation: "pulse 1.2s ease-in-out infinite",
   },
 
-  // Login card (veći)
   loginCard: {
     background: "rgba(255,255,255,0.06)",
     border: "1px solid rgba(148,163,184,0.18)",
@@ -637,7 +609,6 @@ const styles = {
     paddingTop: 12,
   },
 
-  // Results-only indicator
   lockBadge: {
     width: 22,
     height: 22,
@@ -650,7 +621,6 @@ const styles = {
     color: "#d1fae5",
   },
 
-  // Modals
   modalOverlay: {
     position: "fixed",
     inset: 0,
@@ -671,7 +641,6 @@ const styles = {
   },
 
   modalTitle: { margin: 0, fontSize: 20, fontWeight: 900 },
-
   modalText: { margin: "12px 0", lineHeight: 1.6, opacity: 0.9 },
 
   modalActions: {
