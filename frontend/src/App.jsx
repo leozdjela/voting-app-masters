@@ -19,6 +19,8 @@ function clamp(n, a, b) {
 }
 
 export default function App() {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showVotedModal, setShowVotedModal] = useState(false);
   const abi = votingArtifact.abi;
 
   const [error, setError] = useState("");
@@ -179,6 +181,7 @@ export default function App() {
       if (!res.ok) {
         if (res.status === 409) {
           setAlreadyVoted(true);
+          setShowVotedModal(true);
           throw new Error("Već ste glasali (SSO račun je već iskorišten).");
         }
         throw new Error(data?.error || `Backend error ${res.status}`);
@@ -198,6 +201,7 @@ export default function App() {
       }
 
       setStatus("Glas je zabilježen ✅");
+      setShowVotedModal(true);
     } catch (e) {
       console.error("voteGasless error:", e);
       setStatus("");
@@ -370,7 +374,7 @@ export default function App() {
 
               <div style={{ marginTop: 14 }}>
                 <button
-                  onClick={voteGasless}
+                  onClick={() => setShowConfirm(true)}
                   disabled={!canVote}
                   className="btn-primary"
                   style={{
