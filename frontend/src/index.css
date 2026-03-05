@@ -13,6 +13,32 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  background: #070a12; /* fallback ako nešto ostane “prazno” */
+}
+
+.login-center {
+  min-height: calc(100vh - 140px); /* prostor za header */
+  display: grid;
+  place-items: center;
+}
+
+@keyframes pulse {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
 a {
   font-weight: 500;
   color: #646cff;
@@ -64,5 +90,81 @@ button:focus-visible {
   }
   button {
     background-color: #f9f9f9;
+  }
+}
+
+/* Layout helpers */
+.app-shell {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Main content width: fluid but not absurd on ultrawide */
+.app-container {
+  width: 100%;
+  margin: 0;
+}
+
+/* Grid: 2 columns on desktop, 1 column on smaller screens */
+.app-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1.5fr;
+}
+
+/* Cards padding tweaks */
+.card-pad {
+  padding: 18px;
+}
+
+/* Make option rows comfortable for touch */
+.option-pad {
+  padding: 12px;
+}
+
+/* Primary button sizing */
+.btn-primary {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+}
+
+/* --- Breakpoints --- */
+
+/* <= 1024px: stack (tablet + small laptop) */
+@media (max-width: 1024px) {
+  .app-container {
+    width: min(900px, 100%);
+  }
+
+  .app-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* <= 640px: mobile */
+@media (max-width: 640px) {
+  .app-container {
+    width: 100%;
+  }
+
+  .card-pad {
+    padding: 14px;
+  }
+
+  .option-pad {
+    padding: 14px;
+  }
+
+  .btn-primary {
+    padding: 14px 14px;
+    font-size: 16px;
+  }
+}
+
+/* >= 1600px: ultrawide: allow a bit more width */
+@media (min-width: 1600px) {
+  .app-container {
+    width: min(1600px, 100%);
   }
 }
