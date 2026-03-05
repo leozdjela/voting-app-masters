@@ -7,20 +7,11 @@ const SEPOLIA_RPC_URL = import.meta.env.VITE_SEPOLIA_RPC_URL;
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-const SEPOLIA_CHAIN_ID_DEC = "11155111";
-
-function shortHash(h, n = 10) {
-  if (!h) return "";
-  return `${h.slice(0, n)}…${h.slice(-6)}`;
-}
-
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n));
 }
 
 export default function App() {
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [showVotedModal, setShowVotedModal] = useState(false);
   const abi = votingArtifact.abi;
 
   const [error, setError] = useState("");
@@ -37,12 +28,17 @@ export default function App() {
   const [nullifier, setNullifier] = useState("");
   const [alreadyVoted, setAlreadyVoted] = useState(false);
 
-  const [txHash, setTxHash] = useState("");
+  const [txHash, setTxHash] = useState(""); // ostaje za debug (ne prikazujemo korisniku)
 
   const [loadingPoll, setLoadingPoll] = useState(false);
   const [loadingNullifier, setLoadingNullifier] = useState(false);
   const [submittingVote, setSubmittingVote] = useState(false);
 
+  // Modali
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showVotedModal, setShowVotedModal] = useState(false);
+
+  // Read-only provider (bez MetaMaska)
   const providerRead = useMemo(() => {
     try {
       if (!SEPOLIA_RPC_URL) return null;
@@ -68,7 +64,7 @@ export default function App() {
       setStatus("Učitavam anketu…");
       setLoadingPoll(true);
 
-      if (!contractRead) throw new Error("Contract/provider not ready (check VITE_SEPOLIA_RPC_URL & VITE_CONTRACT_ADDRESS)");
+      if (!contractRead) throw new Error("Ugovor/provider nije spreman (provjeri VITE_SEPOLIA_RPC_URL i VITE_CONTRACT_ADDRESS).");
 
       const q = await contractRead.question();
       const n = await contractRead.optionsCount();
@@ -129,11 +125,11 @@ export default function App() {
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error(`Backend did not return JSON (status ${res.status}).`);
+        throw new Error(`Backend nije vratio JSON (status ${res.status}).`);
       }
 
-      if (!res.ok) throw new Error(data?.error || `Backend error ${res.status}`);
-      if (!data.nullifier) throw new Error("Backend did not return nullifier");
+      if (!res.ok) throw new Error(data?.error || `Backend greška ${res.status}`);
+      if (!data.nullifier) throw new Error("Backend nije vratio nullifier.");
 
       setNullifier(data.nullifier);
       await checkNullifierUsed(data.nullifier);
@@ -155,10 +151,9 @@ export default function App() {
       setStatus("Šaljem glas…");
       setSubmittingVote(true);
 
-      if (!idToken) throw new Error("Google login required.");
-      if (!contractRead) throw new Error("Contract not ready.");
-
-      if (alreadyVoted) throw new Error("Already voted");
+      if (!idToken) throw new Error("Potrebna je prijava Google računom.");
+      if (!contractRead) throw new Error("Ugovor nije spreman.");
+      if (alreadyVoted) throw new Error("Već ste glasali.");
 
       const res = await fetch(`${BACKEND_URL}/vote`, {
         method: "POST",
@@ -175,20 +170,20 @@ export default function App() {
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error(`Backend did not return JSON (status ${res.status}).`);
+        throw new Error(`Backend nije vratio JSON (status ${res.status}).`);
       }
 
       if (!res.ok) {
         if (res.status === 409) {
           setAlreadyVoted(true);
           setShowVotedModal(true);
-          throw new Error("Već ste glasali (SSO račun je već iskorišten).");
+          throw new Error("Već ste glasali (ovaj račun je već iskorišten).");
         }
-        throw new Error(data?.error || `Backend error ${res.status}`);
+        throw new Error(data?.error || `Backend greška ${res.status}`);
       }
 
       const hash = data.txHash;
-      if (!hash) throw new Error("Backend did not return txHash");
+      if (!hash) throw new Error("Backend nije vratio txHash.");
 
       setTxHash(hash);
       setStatus("Glas poslan ✅ Osvježavam rezultate…");
@@ -215,7 +210,7 @@ export default function App() {
   useEffect(() => {
     if (!window.google?.accounts?.id) return;
     if (!GOOGLE_CLIENT_ID) {
-      setError("Missing VITE_GOOGLE_CLIENT_ID in frontend env");
+      setError("Nedostaje VITE_GOOGLE_CLIENT_ID u env varijablama.");
       return;
     }
 
@@ -224,53 +219,51 @@ export default function App() {
       callback: (resp) => {
         setIdToken(resp?.credential || "");
         setError("");
-        setStatus("Signed in ✅");
+        setStatus("Prijava uspješna ✅");
       },
       ux_mode: "popup",
       itp_support: true,
     });
 
-    // render once; the element exists on initial render (not logged in)
+    // render once; element postoji na prvom renderu (nisam prijavljen)
     window.google.accounts.id.renderButton(document.getElementById("googleBtn"), {
       theme: "outline",
       size: "large",
       shape: "pill",
-      width: 320,
-      textAlign: "center",
+      width: 340,
     });
   }, []);
 
+  // Load poll on mount
   useEffect(() => {
     loadPoll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contractRead]);
 
+  // kad se token postavi, izračunaj nullifier + provjeri already voted
   useEffect(() => {
     if (idToken) fetchNullifier();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idToken]);
 
-  const canVote = Boolean(idToken) && !alreadyVoted && options.length > 0 && !loadingNullifier && !submittingVote;
+  const canVote =
+    Boolean(idToken) &&
+    !alreadyVoted &&
+    options.length > 0 &&
+    !loadingNullifier &&
+    !submittingVote;
 
   return (
     <div style={styles.page} className="app-shell">
       <div className="app-container">
-        <header style={styles.header}>
-          <div>
-            
+        <header style={{ ...styles.header, justifyContent: "center" }}>
+          <div style={{ textAlign: "center" }}>
             <h1 style={styles.h1}>Anketa</h1>
-            <p style={styles.sub}>Prijavi se Google računom, odaberi opciju i glasaj.</p>
-          </div>
-
-          <div style={styles.contractBox}>
-            
-            <span style={styles.miniValue} title={CONTRACT_ADDRESS || ""}>
-              {CONTRACT_ADDRESS ? shortHash(CONTRACT_ADDRESS, 12) : "-"}
-            </span>
+            <p style={styles.sub}>Prijavi se, odaberi opciju i glasaj.</p>
           </div>
         </header>
 
-        <main className="app-grid">
+        <main className="app-grid" style={{ gridTemplateColumns: "1fr" }}>
           {!idToken ? (
             <section style={styles.loginCard} className="card-pad">
               <h2 style={styles.loginTitle}>Prijavi se za glasanje</h2>
@@ -278,20 +271,17 @@ export default function App() {
                 Za glasanje je potreban Google račun kako bismo omogućili <b>1 glas po osobi</b>.
               </p>
 
-              <div style={{ marginTop: 14 }}>
+              <div style={{ marginTop: 18 }}>
                 <div id="googleBtn" />
               </div>
 
-              <div style={styles.loginHint}>Nakon prijave prikazat će se anketa i opcije.</div>
+              <div style={styles.loginHint}>
+                Nakon prijave prikazat će se anketa i opcije.
+              </div>
 
-              {status && (
-                <div style={{ ...styles.alertInfo, marginTop: 12 }}>
-                  <b>Info:</b> {status}
-                </div>
-              )}
               {error && (
                 <div style={{ ...styles.alertErr, marginTop: 12 }}>
-                  <b>Error:</b> {error}
+                  <b>Greška:</b> {error}
                 </div>
               )}
             </section>
@@ -304,7 +294,7 @@ export default function App() {
                   disabled={loadingPoll}
                   style={{ ...styles.btnGhost, opacity: loadingPoll ? 0.65 : 1 }}
                 >
-                  {loadingPoll ? "Osvježavanje" : "Osvježi"}
+                  {loadingPoll ? "Osvježavam…" : "Osvježi"}
                 </button>
               </div>
 
@@ -313,7 +303,7 @@ export default function App() {
               <div style={styles.hr} />
 
               <div style={styles.cardTop}>
-                <h3 style={styles.h3}>Opcije</h3>
+                <h3 style={styles.h3}>{alreadyVoted ? "Rezultati" : "Opcije"}</h3>
                 <div style={styles.muted}>
                   Ukupno glasova: <b>{totalVotes}</b>
                 </div>
@@ -326,7 +316,7 @@ export default function App() {
                   <div style={styles.skel} />
                 </div>
               ) : (
-                <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
                   {options.map((opt, i) => {
                     const v = counts[i] ?? 0;
                     const pct = totalVotes > 0 ? (v / totalVotes) * 100 : 0;
@@ -338,32 +328,50 @@ export default function App() {
                         className="option-pad"
                         style={{
                           ...styles.option,
-                          borderColor: selected ? "rgba(99,102,241,0.55)" : "rgba(148,163,184,0.35)",
-                          boxShadow: selected ? "0 0 0 4px rgba(99,102,241,0.12)" : "none",
+                          cursor: alreadyVoted ? "default" : "pointer",
+                          borderColor: !alreadyVoted && selected
+                            ? "rgba(99,102,241,0.55)"
+                            : "rgba(148,163,184,0.35)",
+                          boxShadow: !alreadyVoted && selected
+                            ? "0 0 0 4px rgba(99,102,241,0.12)"
+                            : "none",
                         }}
-                        onClick={() => setSelectedIndex(i)}
+                        onClick={() => {
+                          if (!alreadyVoted) setSelectedIndex(i);
+                        }}
                       >
                         <div style={{ display: "grid", gap: 6 }}>
                           <div style={styles.optionTop}>
                             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                              <input
-                                type="radio"
-                                name="opt"
-                                checked={selected}
-                                onChange={() => setSelectedIndex(i)}
-                                style={{ transform: "scale(1.1)" }}
-                              />
+                              {!alreadyVoted ? (
+                                <input
+                                  type="radio"
+                                  name="opt"
+                                  checked={selected}
+                                  onChange={() => setSelectedIndex(i)}
+                                  style={{ transform: "scale(1.1)" }}
+                                />
+                              ) : (
+                                <span style={styles.lockBadge}>✓</span>
+                              )}
                               <span style={styles.optionText}>{opt}</span>
                             </div>
 
                             <div style={styles.optionMeta}>
                               <span style={styles.pill}>{v} glasova</span>
-                              <span style={styles.pillMuted}>{clamp(Math.round(pct), 0, 100)}%</span>
+                              <span style={styles.pillMuted}>
+                                {clamp(Math.round(pct), 0, 100)}%
+                              </span>
                             </div>
                           </div>
 
                           <div style={styles.progressTrack}>
-                            <div style={{ ...styles.progressFill, width: `${clamp(pct, 0, 100)}%` }} />
+                            <div
+                              style={{
+                                ...styles.progressFill,
+                                width: `${clamp(pct, 0, 100)}%`,
+                              }}
+                            />
                           </div>
                         </div>
                       </label>
@@ -372,50 +380,91 @@ export default function App() {
                 </div>
               )}
 
-              <div style={{ marginTop: 14 }}>
-                <button
-                  onClick={() => setShowConfirm(true)}
-                  disabled={!canVote}
-                  className="btn-primary"
-                  style={{
-                    ...styles.btnPrimary,
-                    opacity: canVote ? 1 : 0.6,
-                    cursor: canVote ? "pointer" : "not-allowed",
-                  }}
-                >
-                  {submittingVote ? "Glasam…" : alreadyVoted ? "Već ste glasali" : "Glasaj"}
-                </button>
-              </div>
-
-              {alreadyVoted && (
-                <div style={styles.alertWarn}>
-                  <b>Već ste glasali.</b> Ovaj Google račun je već iskorišten za ovu anketu.
+              {!alreadyVoted && (
+                <div style={{ marginTop: 14 }}>
+                  <button
+                    onClick={() => setShowConfirm(true)}
+                    disabled={!canVote}
+                    className="btn-primary"
+                    style={{
+                      ...styles.btnPrimary,
+                      opacity: canVote ? 1 : 0.6,
+                      cursor: canVote ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {submittingVote ? "Glasam…" : "Glasaj"}
+                  </button>
                 </div>
               )}
 
-              
-
-              {(status || error) && (
-                <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                  {status && (
-                    <div style={styles.alertInfo}>
-                      <b>Info:</b> {status}
-                    </div>
-                  )}
-                  {error && (
-                    <div style={styles.alertErr}>
-                      <b>Error:</b> {error}
-                    </div>
-                  )}
+              {status && (
+                <div style={{ ...styles.alertInfo, marginTop: 12 }}>
+                  <b>Info:</b> {status}
+                </div>
+              )}
+              {error && (
+                <div style={{ ...styles.alertErr, marginTop: 12 }}>
+                  <b>Greška:</b> {error}
                 </div>
               )}
             </section>
           )}
-
-          {/* Optional side panel placeholder on desktop; remove if you don’t want it at all */}
-          
         </main>
       </div>
+
+      {/* Modal: potvrda glasanja */}
+      {showConfirm && (
+        <div style={styles.modalOverlay} onClick={() => setShowConfirm(false)}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3 style={styles.modalTitle}>Potvrdi glas</h3>
+            <p style={styles.modalText}>
+              Jeste li sigurni da želite glasati za opciju:
+              <br />
+              <b>{options[selectedIndex] ?? "—"}</b>?
+            </p>
+
+            <div style={styles.modalActions}>
+              <button
+                style={styles.modalBtnGhost}
+                onClick={() => setShowConfirm(false)}
+              >
+                Odustani
+              </button>
+
+              <button
+                style={styles.modalBtnPrimary}
+                onClick={async () => {
+                  setShowConfirm(false);
+                  await voteGasless();
+                }}
+              >
+                Potvrdi glas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: već glasano / glas zaprimljen */}
+      {showVotedModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowVotedModal(false)}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3 style={styles.modalTitle}>Već ste glasali ✅</h3>
+            <p style={styles.modalText}>
+              Vaš glas je zabilježen. Ispod možete vidjeti trenutne rezultate ankete.
+            </p>
+
+            <div style={styles.modalActions}>
+              <button
+                style={styles.modalBtnPrimary}
+                onClick={() => setShowVotedModal(false)}
+              >
+                U redu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -427,53 +476,21 @@ const styles = {
       "radial-gradient(1200px 700px at 20% 10%, rgba(99,102,241,0.22), transparent 55%), radial-gradient(900px 600px at 90% 20%, rgba(16,185,129,0.16), transparent 50%), linear-gradient(180deg, #0b1020, #070a12)",
     color: "#e5e7eb",
     padding: "20px clamp(12px, 3vw, 36px)",
-    fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+    fontFamily:
+      "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
   },
 
   header: {
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent: "center",
     gap: 18,
     alignItems: "flex-start",
     flexWrap: "wrap",
     marginBottom: 18,
-    textAlign: "left",
   },
 
-  badgeRow: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 },
-
-  badge: {
-    fontSize: 12,
-    padding: "6px 10px",
-    borderRadius: 999,
-    background: "rgba(99,102,241,0.18)",
-    border: "1px solid rgba(99,102,241,0.35)",
-  },
-
-  badgeMuted: {
-    fontSize: 12,
-    padding: "6px 10px",
-    borderRadius: 999,
-    background: "rgba(148,163,184,0.10)",
-    border: "1px solid rgba(148,163,184,0.18)",
-    color: "rgba(229,231,235,0.85)",
-  },
-
-  h1: { fontSize: 34, lineHeight: 1.1, margin: 0 },
-  sub: { margin: "8px 0 0", opacity: 0.85, maxWidth: 720 },
-
-  contractBox: {
-    display: "grid",
-    gap: 6,
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(148,163,184,0.18)",
-    background: "rgba(148,163,184,0.06)",
-    height: "fit-content",
-  },
-
-  miniLabel: { opacity: 0.75, fontSize: 12 },
-  miniValue: { opacity: 0.95, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" },
+  h1: { fontSize: 40, lineHeight: 1.1, margin: 0, fontWeight: 900 },
+  sub: { margin: "10px 0 0", opacity: 0.85, maxWidth: 720, fontSize: 16 },
 
   card: {
     background: "rgba(255,255,255,0.06)",
@@ -481,17 +498,26 @@ const styles = {
     borderRadius: 18,
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     backdropFilter: "blur(10px)",
-    textAlign: "center",
   },
 
-  cardTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 },
+  cardTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+  },
+
   h2: { margin: 0, fontSize: 18, opacity: 0.95 },
   h3: { margin: 0, fontSize: 16, opacity: 0.95 },
 
   question: { fontSize: 20, margin: "10px 0 0", color: "#f3f4f6" },
   muted: { opacity: 0.8, fontSize: 13 },
 
-  hr: { height: 1, background: "rgba(148,163,184,0.18)", margin: "14px 0" },
+  hr: {
+    height: 1,
+    background: "rgba(148,163,184,0.18)",
+    margin: "14px 0",
+  },
 
   btnGhost: {
     background: "rgba(148,163,184,0.10)",
@@ -500,7 +526,6 @@ const styles = {
     padding: "8px 10px",
     borderRadius: 12,
     cursor: "pointer",
-    textAlign: "center",
   },
 
   option: {
@@ -508,10 +533,16 @@ const styles = {
     borderRadius: 14,
     border: "1px solid rgba(148,163,184,0.35)",
     background: "rgba(2,6,23,0.35)",
-    cursor: "pointer",
   },
 
-  optionTop: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" },
+  optionTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+
   optionText: { fontSize: 16, color: "#f9fafb" },
   optionMeta: { display: "flex", gap: 8, alignItems: "center" },
 
@@ -542,35 +573,18 @@ const styles = {
   progressFill: {
     height: "100%",
     borderRadius: 999,
-    background: "linear-gradient(90deg, rgba(99,102,241,0.95), rgba(16,185,129,0.85))",
+    background:
+      "linear-gradient(90deg, rgba(99,102,241,0.95), rgba(16,185,129,0.85))",
     transition: "width 260ms ease",
   },
 
   btnPrimary: {
-    background: "linear-gradient(90deg, rgba(99,102,241,1), rgba(16,185,129,0.95))",
+    background:
+      "linear-gradient(90deg, rgba(99,102,241,1), rgba(16,185,129,0.95))",
     border: "none",
     color: "#061018",
-    fontWeight: 800,
+    fontWeight: 900,
     borderRadius: 14,
-    textAlign: "center",
-  },
-
-  alertWarn: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 14,
-    background: "rgba(244,63,94,0.10)",
-    border: "1px solid rgba(244,63,94,0.25)",
-    color: "#fecdd3",
-  },
-
-  alertOk: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 14,
-    background: "rgba(16,185,129,0.10)",
-    border: "1px solid rgba(16,185,129,0.25)",
-    color: "#d1fae5",
   },
 
   alertInfo: {
@@ -588,27 +602,27 @@ const styles = {
     color: "#fecdd3",
   },
 
-  link: { color: "#e5e7eb", textDecoration: "none", fontWeight: 700 },
-
-  skelWrap: { display: "grid", gap: 10 },
+  skelWrap: { display: "grid", gap: 10, marginTop: 10 },
   skel: {
     height: 56,
     borderRadius: 14,
-    background: "linear-gradient(90deg, rgba(148,163,184,0.10), rgba(148,163,184,0.18), rgba(148,163,184,0.10))",
+    background:
+      "linear-gradient(90deg, rgba(148,163,184,0.10), rgba(148,163,184,0.18), rgba(148,163,184,0.10))",
     backgroundSize: "200% 100%",
     animation: "pulse 1.2s ease-in-out infinite",
   },
 
+  // Login card (veći)
   loginCard: {
     background: "rgba(255,255,255,0.06)",
     border: "1px solid rgba(148,163,184,0.18)",
     borderRadius: 18,
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     backdropFilter: "blur(10px)",
-    maxWidth: 560,
-    margin: "10vh auto 0",
-    textAlign: "center",
-    maxWidth: 720,
+    maxWidth: 760,
+    margin: "0 auto",
+    textAlign: "left",
+    padding: 28,
   },
 
   loginTitle: { margin: 0, fontSize: 28, fontWeight: 900 },
@@ -620,5 +634,70 @@ const styles = {
     opacity: 0.8,
     borderTop: "1px solid rgba(148,163,184,0.18)",
     paddingTop: 12,
+  },
+
+  // Results-only indicator
+  lockBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    display: "inline-grid",
+    placeItems: "center",
+    fontWeight: 900,
+    background: "rgba(16,185,129,0.18)",
+    border: "1px solid rgba(16,185,129,0.35)",
+    color: "#d1fae5",
+  },
+
+  // Modals
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "grid",
+    placeItems: "center",
+    padding: 16,
+    zIndex: 9999,
+  },
+
+  modal: {
+    width: "min(560px, 95%)",
+    background: "#0f172a",
+    border: "1px solid rgba(148,163,184,0.22)",
+    borderRadius: 16,
+    padding: 24,
+    boxShadow: "0 30px 90px rgba(0,0,0,0.6)",
+  },
+
+  modalTitle: { margin: 0, fontSize: 20, fontWeight: 900 },
+
+  modalText: { margin: "12px 0", lineHeight: 1.6, opacity: 0.9 },
+
+  modalActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 16,
+    flexWrap: "wrap",
+  },
+
+  modalBtnGhost: {
+    background: "rgba(148,163,184,0.10)",
+    border: "1px solid rgba(148,163,184,0.20)",
+    color: "#e5e7eb",
+    padding: "10px 12px",
+    borderRadius: 12,
+    cursor: "pointer",
+    fontWeight: 800,
+  },
+
+  modalBtnPrimary: {
+    background: "linear-gradient(90deg, #6366f1, #10b981)",
+    border: "none",
+    color: "#061018",
+    padding: "10px 14px",
+    borderRadius: 12,
+    cursor: "pointer",
+    fontWeight: 900,
   },
 };
