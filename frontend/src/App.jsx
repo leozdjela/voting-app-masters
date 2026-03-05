@@ -277,6 +277,7 @@ export default function App() {
 
               <div style={styles.loginHint}>
                 Nakon prijave prikazat će se anketa i opcije.
+                <br> <i>Ako "login" nije prikazan, refresh stranicu </i></br>
               </div>
 
               {error && (
