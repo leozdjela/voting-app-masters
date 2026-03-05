@@ -281,6 +281,7 @@ export default function App() {
           <div style={{ textAlign: "center" }}>
             <h1 style={styles.h1}>Anketa</h1>
             <p style={styles.sub}>Prijavi se, odaberi opciju i glasaj.</p>
+            <p><i>Ako se login ne prikazuje, osvježi stranicu</i></p>
           </div>
         </header>
 
