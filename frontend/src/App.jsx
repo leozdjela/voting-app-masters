@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
 import votingArtifact from "./abi/Voting.json";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || "https://voting-app-masters.onrender.com").replace(/\/+$/, "");
 const SEPOLIA_RPC_URL = import.meta.env.VITE_SEPOLIA_RPC_URL;
@@ -11,8 +12,34 @@ function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n));
 }
 
+function loadGsiScriptOnce() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.id) return resolve(true);
+
+    const existing = document.querySelector(
+      'script[src="https://accounts.google.com/gsi/client"]'
+    );
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true));
+      existing.addEventListener("error", reject);
+      return;
+    }
+
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.defer = true;
+    s.onload = () => resolve(true);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
 export default function App() {
   const abi = votingArtifact.abi;
+
+  const googleBtnRef = useRef(null);
+  const gsiInitedRef = useRef(false);
 
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -223,31 +250,56 @@ export default function App() {
   }
 
   // Google button init
-  useEffect(() => {
-    if (!window.google?.accounts?.id) return;
-    if (!GOOGLE_CLIENT_ID) {
-      setError("Nedostaje VITE_GOOGLE_CLIENT_ID u env varijablama.");
-      return;
+ useEffect(() => {
+  let cancelled = false;
+
+  async function initGsi() {
+    try {
+      if (!GOOGLE_CLIENT_ID) {
+        setError("Nedostaje VITE_GOOGLE_CLIENT_ID u env varijablama.");
+        return;
+      }
+
+      await loadGsiScriptOnce();
+      if (cancelled) return;
+
+      if (gsiInitedRef.current) return;
+      if (!googleBtnRef.current) return;
+      if (!window.google?.accounts?.id) return;
+
+      gsiInitedRef.current = true;
+
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (resp) => {
+          setIdToken(resp?.credential || "");
+          setError("");
+          setStatus("Prijava uspješna ✅");
+        },
+        ux_mode: "popup",
+        itp_support: true,
+      });
+
+      googleBtnRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "outline",
+        size: "large",
+        shape: "pill",
+        width: Math.min(340, window.innerWidth - 48),
+      });
+    } catch (e) {
+      console.error("GSI init error:", e);
+      setError(
+        "Ne mogu učitati Google login na ovom uređaju/pregledniku. Probaj drugi browser ili isključi blokatore."
+      );
     }
+  }
 
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: (resp) => {
-        setIdToken(resp?.credential || "");
-        setError("");
-        setStatus("Prijava uspješna ✅");
-      },
-      ux_mode: "popup",
-      itp_support: true,
-    });
-
-    window.google.accounts.id.renderButton(document.getElementById("googleBtn"), {
-      theme: "outline",
-      size: "large",
-      shape: "pill",
-      width: 340,
-    });
-  }, []);
+  initGsi();
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
   // Load poll on mount
   useEffect(() => {
@@ -294,7 +346,7 @@ export default function App() {
               </p>
 
               <div style={{ marginTop: 18 }}>
-                <div id="googleBtn" />
+                <div ref={googleBtnRef} />
               </div>
 
               <div style={styles.loginHint}>Nakon prijave prikazat će se anketa i opcije.</div>
