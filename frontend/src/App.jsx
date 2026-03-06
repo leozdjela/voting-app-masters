@@ -331,8 +331,7 @@ export default function App() {
       <div className="app-container">
         <header style={{ ...styles.header, justifyContent: "center" }}>
           <div style={{ textAlign: "center" }}>
-            <h1 style={styles.h1}>Anketa</h1>
-            <p style={styles.sub}>Prijavi se, odaberi opciju i glasaj.</p>
+            <h1 style={styles.h1}>Prijavi se, odaberi opciju i glasaj.</h1>
             <p><i>Ako se login ne prikazuje, osvježi stranicu</i></p>
           </div>
         </header>
