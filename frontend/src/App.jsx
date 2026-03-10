@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
 import votingArtifact from "./abi/Voting.json";
 import { useEffect, useMemo, useRef, useState } from "react";
