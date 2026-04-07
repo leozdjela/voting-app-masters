@@ -1,57 +1,55 @@
-# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
+# Voting App Masters
 
-This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+Ovaj repozitorij sadrži prototip decentralizirane aplikacije za digitalno glasanje razvijene u sklopu diplomskog rada.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+Sustav demonstrira primjenu blockchain tehnologije i pametnih ugovora za sigurno, transparentno i provjerljivo glasanje.
 
-## Project Overview
+---
 
-This example project includes:
+## Opis projekta
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+Aplikacija omogućuje korisnicima sudjelovanje u procesu glasanja uz sljedeće karakteristike:
 
-## Usage
+- sprječavanje višestrukog glasanja
+- transparentan prikaz rezultata
+- nepromjenjiv zapis glasova na blockchainu
+- odvajanje identiteta korisnika od samog glasa
 
-### Running Tests
+---
 
-To run all the tests in the project, execute the following command:
+## Arhitektura sustava
 
-```shell
-npx hardhat test
-```
+Sustav je implementiran kao višeslojna web aplikacija:
 
-You can also selectively run the Solidity or `mocha` tests:
+- **Frontend (React)**  
+  korisničko sučelje za prijavu, glasanje i prikaz rezultata
 
-```shell
-npx hardhat test solidity
-npx hardhat test mocha
-```
+- **Backend (Node.js / Express)**  
+  autentifikacija korisnika i komunikacija s blockchainom
 
-### Make a deployment to Sepolia
+- **Smart contract (Solidity)**  
+  logika glasanja i pohrana rezultata na Ethereum mreži
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+---
 
-To run the deployment to a local chain:
+## Tehnologije
 
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
-```
+- Node.js
+- Express.js
+- React
+- Solidity
+- Hardhat
+- ethers.js
+- dotenv
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+---
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
+## Struktura repozitorija
 
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
-
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+```text
+backend/              aplikacijski poslužitelj
+contracts/            pametni ugovori (Solidity)
+frontend/             korisničko sučelje
+ignition/modules/     skripte za deploy ugovora
+scripts/              pomoćne skripte
+test/                 testovi
