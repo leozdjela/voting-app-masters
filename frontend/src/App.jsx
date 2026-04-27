@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import votingArtifact from "./abi/Voting.json";
+import votingArtifact from ".Voting.json";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || "https://voting-app-masters.onrender.com").replace(/\/+$/, "");
